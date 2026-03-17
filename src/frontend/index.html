@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Air Quality Monitoring System</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    
+    <!-- Login Page Container -->
+    <div id="loginPage" class="login-container"></div>
+    
+    <!-- Registration Page Container -->
+    <div id="registerPage" class="login-container d-none"></div>
+    
+    <!-- Main Application -->
+    <div id="mainApp" class="d-none">
+        <!-- Top Navigation -->
+        <nav class="navbar navbar-expand-lg top-navbar">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <i class="bi bi-cloud-haze2-fill"></i>
+                    <span>IoT AQI Monitor</span>
+                </a>
+                
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav nav-pills me-auto">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-page="dashboard">
+                                <i class="bi bi-speedometer2"></i><span> Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="devices">
+                                <i class="bi bi-hdd-network"></i><span> Devices</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="history">
+                                <i class="bi bi-clock-history"></i><span> History</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="alerts">
+                                <i class="bi bi-exclamation-triangle"></i><span> Alerts</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="export">
+                                <i class="bi bi-download"></i><span> Export</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="settings">
+                                <i class="bi bi-gear"></i><span> Settings</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="profile">
+                                <i class="bi bi-person-circle"></i><span> Profile</span>
+                            </a>
+                        </li>
+                        <li class="nav-item" id="adminNavItem" style="display: none;">
+                            <a class="nav-link" href="#" data-page="admin">
+                                <i class="bi bi-shield-lock"></i><span> Admin</span>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="d-flex align-items-center">
+                        <span class="user-info-badge me-3">
+                            <i class="bi bi-person-circle"></i>
+                            <span id="userInfo"></span>
+                        </span>
+                        <button class="btn logout-btn" id="logoutBtn">
+                            <i class="bi bi-box-arrow-right"></i><span> Logout</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Main Content Container -->
+        <div class="main-content">
+            <div id="pageContainer"></div>
+        </div>
+    </div>
+    
+    <!-- OTP Verification Modal -->
+    <div class="modal fade" id="otpModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-shield-check"></i> Verify Mobile Number</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">A 6-digit verification code has been sent to your mobile number.</p>
+                    <p class="fw-bold text-center" id="otpMobileDisplay"></p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Enter Verification Code</label>
+                        <input type="text" class="form-control form-control-lg text-center" id="otpCode" 
+                               placeholder="000000" maxlength="6" pattern="[0-9]{6}" required 
+                               style="letter-spacing: 0.5rem; font-size: 1.5rem;">
+                    </div>
+                    
+                    <div id="otpError" class="alert alert-danger d-none"></div>
+                    <div id="otpSuccess" class="alert alert-success d-none"></div>
+                    
+                    <p class="text-muted small text-center">
+                        <i class="bi bi-clock"></i> Code expires in <span id="otpTimer">10:00</span>
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="resendOtpBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Resend Code
+                    </button>
+                    <button type="button" class="btn btn-primary" id="verifyOtpBtn">
+                        <i class="bi bi-check-circle"></i> Verify
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div class="modal fade" id="passwordResetModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="bi bi-key"></i> Reset Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="resetStep1">
+                        <p class="text-muted">Enter your username or mobile number to receive a reset code via SMS.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Username or Mobile Number</label>
+                            <input type="text" class="form-control" id="resetIdentifier" placeholder="admin or +11234567890" required>
+                        </div>
+                        <div id="resetRequestError" class="alert alert-danger d-none"></div>
+                        <button type="button" class="btn btn-primary w-100" id="requestResetBtn">
+                            <i class="bi bi-send"></i> Send Reset Code
+                        </button>
+                    </div>
+                    
+                    <div id="resetStep2" class="d-none">
+                        <p class="text-muted">A 6-digit reset code has been sent to your mobile number.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Reset Code</label>
+                            <input type="text" class="form-control text-center" id="resetCode" 
+                                   placeholder="000000" maxlength="6" pattern="[0-9]{6}" required
+                                   style="letter-spacing: 0.3rem; font-size: 1.2rem;">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="resetNewPassword" required minlength="6">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="resetConfirmPassword" required>
+                        </div>
+                        <div id="resetError" class="alert alert-danger d-none"></div>
+                        <div id="resetSuccess" class="alert alert-success d-none"></div>
+                        <button type="button" class="btn btn-primary w-100" id="resetPasswordBtn">
+                            <i class="bi bi-check-circle"></i> Reset Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Terms of Service Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-file-text"></i> Terms of Service</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Acceptance of Terms</h6>
+                    <p>By accessing and using this IoT Air Quality Monitoring System, you agree to be bound by these Terms of Service.</p>
+                    
+                    <h6>2. User Accounts</h6>
+                    <p>You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</p>
+                    
+                    <h6>3. Data Collection</h6>
+                    <p>We collect and process data from IoT devices and user accounts to provide monitoring services. All data is handled in accordance with our Privacy Policy.</p>
+                    
+                    <h6>4. Service Availability</h6>
+                    <p>While we strive for 99.9% uptime, we do not guarantee uninterrupted access to the service. Scheduled maintenance will be communicated in advance.</p>
+                    
+                    <h6>5. User Responsibilities</h6>
+                    <ul>
+                        <li>Maintain accurate contact information</li>
+                        <li>Use strong passwords and enable two-factor authentication</li>
+                        <li>Report security vulnerabilities responsibly</li>
+                        <li>Use the service in compliance with applicable laws</li>
+                    </ul>
+                    
+                    <h6>6. Prohibited Activities</h6>
+                    <ul>
+                        <li>Attempting to gain unauthorized access to systems</li>
+                        <li>Disrupting service operation or other users</li>
+                        <li>Transmitting malicious code or content</li>
+                        <li>Violating intellectual property rights</li>
+                    </ul>
+                    
+                    <h6>7. Limitation of Liability</h6>
+                    <p>The service is provided "as is" without warranties of any kind. We are not liable for any damages arising from use of the service.</p>
+                    
+                    <h6>8. Changes to Terms</h6>
+                    <p>We reserve the right to modify these terms at any time. Continued use of the service constitutes acceptance of modified terms.</p>
+                    
+                    <p class="text-muted small mt-4">Last updated: February 20, 2026</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Privacy Policy Modal -->
+    <div class="modal fade" id="privacyModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shield-check"></i> Privacy Policy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Information We Collect</h6>
+                    <p><strong>Account Information:</strong> Username, mobile number, email address, full name</p>
+                    <p><strong>Device Data:</strong> Air quality readings, device status, timestamps</p>
+                    <p><strong>Usage Data:</strong> Login history, IP addresses, device fingerprints, session information</p>
+                    
+                    <h6>2. How We Use Your Information</h6>
+                    <ul>
+                        <li>Provide and maintain the monitoring service</li>
+                        <li>Send alerts and notifications</li>
+                        <li>Authenticate and secure your account</li>
+                        <li>Improve service performance and features</li>
+                        <li>Detect and prevent security threats</li>
+                    </ul>
+                    
+                    <h6>3. Data Security</h6>
+                    <p>We implement industry-standard security measures:</p>
+                    <ul>
+                        <li>256-bit encryption for data transmission</li>
+                        <li>Bcrypt password hashing</li>
+                        <li>Session management with CSRF protection</li>
+                        <li>Regular security audits and updates</li>
+                        <li>Secure cloud infrastructure</li>
+                    </ul>
+                    
+                    <h6>4. Data Retention</h6>
+                    <p>Account data is retained while your account is active. Sensor data is retained for 90 days by default. You can request data deletion at any time.</p>
+                    
+                    <h6>5. Third-Party Services</h6>
+                    <p>We use Twilio for SMS/WhatsApp notifications. Their privacy policy applies to communications through their platform.</p>
+                    
+                    <h6>6. Your Rights</h6>
+                    <ul>
+                        <li>Access your personal data</li>
+                        <li>Request data correction or deletion</li>
+                        <li>Export your data</li>
+                        <li>Opt-out of non-essential communications</li>
+                        <li>Disable your account</li>
+                    </ul>
+                    
+                    <h6>7. Cookies and Tracking</h6>
+                    <p>We use essential cookies for authentication. Remember me tokens are stored securely. You can disable non-essential cookies in your browser.</p>
+                    
+                    <h6>8. Children's Privacy</h6>
+                    <p>This service is not intended for users under 13 years of age. We do not knowingly collect data from children.</p>
+                    
+                    <h6>9. International Data Transfer</h6>
+                    <p>Your data may be processed in servers located in different countries. We ensure appropriate safeguards are in place.</p>
+                    
+                    <h6>10. Contact Us</h6>
+                    <p>For privacy concerns or data requests, contact us at: privacy@iotairquality.com</p>
+                    
+                    <p class="text-muted small mt-4">Last updated: February 20, 2026</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="d-none position-fixed top-50 start-50 translate-middle" style="z-index: 9999;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Modular Utilities (ES6 Modules) -->
+    <script type="module" src="js/module-bridge.js"></script>
+    
+    <!-- Application JavaScript -->
+    <script src="js/pageLoader.js"></script>
+    <script src="js/auth-utils.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

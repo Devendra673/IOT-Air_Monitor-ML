@@ -1,0 +1,54 @@
+{
+  "train_r2": 0.999022573648708,
+  "test_r2": 0.9977891262477203,
+  "test_mae": 0.1517776178794184,
+  "n_features": 23,
+  "n_samples": 278,
+  "feature_names": [
+    "temperature_c",
+    "humidity_rh",
+    "mq135_proxy",
+    "temp_x_humidity",
+    "temp_x_mq135",
+    "humidity_x_mq135",
+    "temp_x_hum_x_mq",
+    "temp_squared",
+    "humidity_squared",
+    "mq135_squared",
+    "temp_to_humidity_ratio",
+    "mq135_to_temp_ratio",
+    "mq135_to_humidity_ratio",
+    "temp_deviation",
+    "humidity_deviation",
+    "mq135_deviation",
+    "temp_zscore",
+    "humidity_zscore",
+    "mq135_zscore",
+    "discomfort_index",
+    "heat_index",
+    "temp_normalized",
+    "humidity_normalized"
+  ],
+  "sensor_ranges": {
+    "temperature": [
+      11.000000000000014,
+      65.0
+    ],
+    "humidity": [
+      38.0,
+      104.0
+    ],
+    "mq135": [
+      -56.25,
+      3212.4999999999995
+    ]
+  },
+  "baseline_values": {
+    "temp_mean": 29.251798561151084,
+    "hum_mean": 52.8705035971223,
+    "mq_mean": 202.83273381294964,
+    "temp_std": 9.566860312980669,
+    "hum_std": 10.038434825842852,
+    "mq_std": 215.1139353089422
+  }
+}

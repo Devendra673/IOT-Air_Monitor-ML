@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+ENV/
+env/
+
+# Data files & Runtime
+*.csv
+data/**/*.csv
+data/database/*.db
+data/database/*.db-journal
+data/runtime/
+data/backups/*.gz
+data/backups/*.json
+data/logs/*.log
+flask_session/
+
+# Models (keep structure, ignore files)
+models/*.joblib
+models/*.pkl
+models/*.h5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

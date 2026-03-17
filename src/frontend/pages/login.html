@@ -1,0 +1,169 @@
+<div class="login-card bg-white">
+    <div class="text-center mb-4">
+        <i class="bi bi-cloud-haze2-fill text-primary" style="font-size: 3rem;"></i>
+        <h3 class="mt-3">IoT Air Quality</h3>
+        <p class="text-muted">Monitoring System</p>
+    </div>
+    
+    <!-- Last Login Info -->
+    <div id="lastLoginInfo" class="alert alert-info d-none" style="font-size: 0.85rem;">
+        <i class="bi bi-info-circle"></i> <span id="lastLoginText"></span>
+    </div>
+    
+    <form id="loginForm">
+        <!-- Username or Mobile -->
+        <div class="mb-3">
+            <label class="form-label">Username or Mobile Number</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input type="text" class="form-control" id="loginUsername" placeholder="username or +1234567890" required autocomplete="username">
+            </div>
+            <small class="text-muted">You can use either username or registered mobile number</small>
+        </div>
+        
+        <!-- Password -->
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                <input type="password" class="form-control" id="loginPassword" required autocomplete="current-password">
+                <button class="btn btn-outline-secondary" type="button" id="toggleLoginPassword">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Remember Me & Forgot Password -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rememberMe">
+                <label class="form-check-label" for="rememberMe">
+                    Remember me
+                </label>
+            </div>
+            <a href="#" id="showPasswordResetBtn" class="text-primary" style="font-size: 0.9rem;">
+                Forgot password?
+            </a>
+        </div>
+        
+        <!-- Error/Warning Messages -->
+        <div id="loginError" class="alert alert-danger d-none"></div>
+        <div id="loginWarning" class="alert alert-warning d-none"></div>
+        
+        <!-- Login Button -->
+        <button type="submit" class="btn btn-primary w-100 mb-3" id="loginButton">
+            <i class="bi bi-box-arrow-in-right"></i> Sign In
+        </button>
+        
+        <!-- Loading Spinner -->
+        <div id="loginLoading" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </form>
+    
+    <!-- Divider -->
+    <div class="text-center my-3">
+        <div class="d-flex align-items-center">
+            <hr class="flex-grow-1">
+            <span class="px-3 text-muted" style="font-size: 0.85rem;">OR</span>
+            <hr class="flex-grow-1">
+        </div>
+    </div>
+    
+    <!-- Register Link -->
+    <div class="text-center">
+        <p class="mb-2">Don't have an account?</p>
+        <a href="#" id="showRegisterBtn" class="btn btn-outline-primary w-100">
+            <i class="bi bi-person-plus"></i> Create Account
+        </a>
+    </div>
+    
+    <!-- Security Badge -->
+    <div class="text-center mt-4">
+        <small class="text-muted">
+            <i class="bi bi-shield-check"></i> Secured with 256-bit encryption
+        </small>
+    </div>
+    
+    <!-- Demo Credentials (for development) -->
+    <div class="text-center mt-3">
+        <details>
+            <summary style="cursor: pointer; font-size: 0.85rem; color: #6c757d;">
+                <i class="bi bi-info-circle"></i> Demo Credentials
+            </summary>
+            <div class="mt-2" style="font-size: 0.85rem;">
+                <p class="mb-1"><strong>Username:</strong> admin</p>
+                <p class="mb-0"><strong>Password:</strong> Admin@123</p>
+            </div>
+        </details>
+    </div>
+</div>
+
+<style>
+/* Enhanced Login Card Styling */
+.login-card {
+    max-width: 450px;
+    margin: 50px auto;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.login-card .form-control:focus,
+.login-card .form-check-input:focus {
+    border-color: #4e73df;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+
+.login-card .btn-primary {
+    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+    border: none;
+    padding: 12px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.login-card .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78, 115, 223, 0.3);
+}
+
+.login-card .btn-outline-primary {
+    border-width: 2px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.login-card .btn-outline-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78, 115, 223, 0.2);
+}
+
+.login-card .input-group-text {
+    background-color: #f8f9fc;
+    border-right: none;
+}
+
+.login-card .form-control {
+    border-left: none;
+}
+
+.login-card .form-control:focus {
+    border-left: none;
+}
+
+.login-card .input-group:focus-within .input-group-text {
+    border-color: #4e73df;
+}
+
+details summary {
+    list-style: none;
+}
+
+details summary::-webkit-details-marker {
+    display: none;
+}
+</style>
+
