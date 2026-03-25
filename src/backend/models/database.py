@@ -9,6 +9,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
+
+def utc_iso(dt):
+    """Serialize datetimes as UTC ISO8601 strings with explicit Z suffix."""
+    if not dt:
+        return None
+    return dt.isoformat() + 'Z'
+
 class Device(db.Model):
     """IoT Device Registration"""
     __tablename__ = 'devices'
@@ -32,8 +39,8 @@ class Device(db.Model):
             'device_name': self.device_name,
             'location': self.location,
             'status': self.status,
-            'registered_at': self.registered_at.isoformat(),
-            'last_seen': self.last_seen.isoformat()
+            'registered_at': utc_iso(self.registered_at),
+            'last_seen': utc_iso(self.last_seen)
         }
 
 
@@ -64,7 +71,7 @@ class Reading(db.Model):
         return {
             'id': self.id,
             'device_id': self.device_id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': utc_iso(self.timestamp),
             'temperature': round(self.temperature, 2),
             'humidity': round(self.humidity, 2),
             'mq135': round(self.mq135, 2),
@@ -96,13 +103,13 @@ class Alert(db.Model):
         return {
             'id': self.id,
             'device_id': self.device_id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': utc_iso(self.timestamp),
             'alert_type': self.alert_type,
             'level': self.level,
             'message': self.message,
             'aqi_value': self.aqi_value,
             'acknowledged': self.acknowledged,
-            'acknowledged_at': self.acknowledged_at.isoformat() if self.acknowledged_at else None
+            'acknowledged_at': utc_iso(self.acknowledged_at)
         }
 
 
@@ -200,8 +207,8 @@ class User(db.Model):
             'email_verified': self.email_verified,
             'full_name': self.full_name,
             'role': self.role,
-            'created_at': self.created_at.isoformat(),
-            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'created_at': utc_iso(self.created_at),
+            'last_login': utc_iso(self.last_login),
             'is_active': self.is_active,
             'notification_preference': self.notification_preference,
             'sms_enabled': preference in ['sms', 'both'],
@@ -231,7 +238,7 @@ class Settings(db.Model):
             'value': self.get_typed_value(),
             'value_type': self.value_type,
             'description': self.description,
-            'updated_at': self.updated_at.isoformat()
+            'updated_at': utc_iso(self.updated_at)
         }
     
     def get_typed_value(self):
@@ -270,8 +277,8 @@ class Notification(db.Model):
             'subject': self.subject,
             'message': self.message,
             'status': self.status,
-            'created_at': self.created_at.isoformat(),
-            'sent_at': self.sent_at.isoformat() if self.sent_at else None
+            'created_at': utc_iso(self.created_at),
+            'sent_at': utc_iso(self.sent_at)
         }
 
 
@@ -302,8 +309,8 @@ class OTPCode(db.Model):
         return {
             'id': self.id,
             'purpose': self.purpose,
-            'created_at': self.created_at.isoformat(),
-            'expires_at': self.expires_at.isoformat(),
+            'created_at': utc_iso(self.created_at),
+            'expires_at': utc_iso(self.expires_at),
             'used': self.used,
             'attempts': self.attempts
         }
@@ -334,8 +341,8 @@ class PasswordResetToken(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'created_at': self.created_at.isoformat(),
-            'expires_at': self.expires_at.isoformat(),
+            'created_at': utc_iso(self.created_at),
+            'expires_at': utc_iso(self.expires_at),
             'used': self.used
         }
 
@@ -370,8 +377,8 @@ class UserSession(db.Model):
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
             'location': self.location,
-            'created_at': self.created_at.isoformat(),
-            'last_activity': self.last_activity.isoformat(),
+            'created_at': utc_iso(self.created_at),
+            'last_activity': utc_iso(self.last_activity),
             'is_active': self.is_active,
             'remember_me': self.remember_me
         }
@@ -396,7 +403,7 @@ class LoginHistory(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': utc_iso(self.timestamp),
             'success': self.success,
             'ip_address': self.ip_address,
             'location': self.location,
@@ -424,7 +431,7 @@ class ActivityLog(db.Model):
         return {
             'id': self.id,
             'user_id': self.user_id,
-            'timestamp': self.timestamp.isoformat(),
+            'timestamp': utc_iso(self.timestamp),
             'action': self.action,
             'resource': self.resource,
             'ip_address': self.ip_address,
@@ -457,7 +464,7 @@ class RememberToken(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'created_at': self.created_at.isoformat(),
-            'last_used': self.last_used.isoformat() if self.last_used else None,
-            'expires_at': self.expires_at.isoformat()
+            'created_at': utc_iso(self.created_at),
+            'last_used': utc_iso(self.last_used),
+            'expires_at': utc_iso(self.expires_at)
         }

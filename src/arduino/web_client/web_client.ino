@@ -26,7 +26,9 @@ const char* WIFI_SSID = "Moto";
 const char* WIFI_PASSWORD = "12345678";
 
 // Server Configuration (CHANGE THIS!)
-const char* SERVER_URL = "http://10.112.237.217:5000/api/predict";  // Your computer's IP address
+const char* SERVER_BASE_URL = "http://10.26.146.217:5000";  // Your computer's current Wi-Fi IP address
+const char* PREDICT_ENDPOINT = "/api/predict";
+const char* HEALTH_ENDPOINT = "/health";
 const char* DEVICE_ID = "ESP32_001";  // Unique device identifier
 
 // Pin Definitions
@@ -57,6 +59,7 @@ void reconnectWiFi();
 void readSensorsAndSend();
 void triggerBuzzer(int beeps);
 String getAQICategory(int mq135Value);
+bool testServerConnection();
 
 // ==================== SETUP ====================
 void setup() {
@@ -77,6 +80,10 @@ void setup() {
   
   // Connect to WiFi
   setupWiFi();
+
+  if (wifiConnected) {
+    testServerConnection();
+  }
   
   // Success beep
   triggerBuzzer(1);
@@ -143,6 +150,44 @@ void reconnectWiFi() {
   WiFi.disconnect();
   delay(1000);
   setupWiFi();
+
+  if (wifiConnected) {
+    testServerConnection();
+  }
+}
+
+// ==================== SERVER CONNECTIVITY CHECK ====================
+bool testServerConnection() {
+  HTTPClient http;
+  String healthUrl = String(SERVER_BASE_URL) + HEALTH_ENDPOINT;
+
+  Serial.println("🔎 Checking server connectivity...");
+  Serial.print("   URL: ");
+  Serial.println(healthUrl);
+
+  http.begin(healthUrl);
+  http.setTimeout(HTTP_TIMEOUT);
+  int code = http.GET();
+
+  if (code > 0) {
+    Serial.print("✓ Server reachable (HTTP ");
+    Serial.print(code);
+    Serial.println(")");
+    String response = http.getString();
+    Serial.print("   Health response: ");
+    Serial.println(response);
+    http.end();
+    return true;
+  }
+
+  Serial.print("✗ Server unreachable. Error: ");
+  Serial.print(code);
+  Serial.print(" (");
+  Serial.print(HTTPClient::errorToString(code));
+  Serial.println(")");
+  Serial.println("   Ensure Flask is running and ESP32 + PC are on same network.");
+  http.end();
+  return false;
 }
 
 // ==================== READ SENSORS AND SEND DATA ====================
@@ -204,7 +249,11 @@ void readSensorsAndSend() {
     Serial.println("\n📤 Sending data to server...");
     
     HTTPClient http;
-    http.begin(SERVER_URL);
+    String predictUrl = String(SERVER_BASE_URL) + PREDICT_ENDPOINT;
+    Serial.print("   URL: ");
+    Serial.println(predictUrl);
+
+    http.begin(predictUrl);
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(HTTP_TIMEOUT);
     
@@ -242,7 +291,11 @@ void readSensorsAndSend() {
         
         if (!error && responseDoc.containsKey("prediction")) {
           JsonObject prediction = responseDoc["prediction"];
-          if (prediction.containsKey("predicted_aqi")) {
+          if (prediction.containsKey("aqi")) {
+            float predictedAQI = prediction["aqi"];
+            Serial.print("   🎯 Predicted AQI: ");
+            Serial.println(predictedAQI, 1);
+          } else if (prediction.containsKey("predicted_aqi")) {
             float predictedAQI = prediction["predicted_aqi"];
             Serial.print("   🎯 Predicted AQI: ");
             Serial.println(predictedAQI, 1);
@@ -256,8 +309,11 @@ void readSensorsAndSend() {
       }
     } else {
       Serial.print("✗ HTTP Error: ");
-      Serial.println(httpResponseCode);
-      Serial.println("   Check server URL and ensure Flask server is running");
+      Serial.print(httpResponseCode);
+      Serial.print(" (");
+      Serial.print(HTTPClient::errorToString(httpResponseCode));
+      Serial.println(")");
+      Serial.println("   Check server IP/port and ensure Flask server is running");
     }
     
     http.end();

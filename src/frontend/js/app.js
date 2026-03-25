@@ -8,6 +8,37 @@ let pendingUserId = null;  // For OTP verification
 let resetToken = null;     // For password reset
 let otpTimer = null;       // OTP countdown timer
 
+function parseApiDate(value) {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value !== 'string') return new Date(value);
+
+    let normalized = value.trim().replace(' ', 'T');
+    const hasTimezone = /([zZ]|[+-]\d{2}:\d{2})$/.test(normalized);
+    if (!hasTimezone) {
+        normalized = `${normalized}Z`;
+    }
+
+    let parsed = new Date(normalized);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+    }
+
+    // Fallback for rare timestamp formats with microseconds or separators.
+    parsed = new Date(Date.parse(normalized));
+    return parsed;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 // ==================== INITIALIZATION ====================
 
 document.addEventListener('DOMContentLoaded', ()=> {
@@ -101,9 +132,9 @@ function setupEventListeners() {
 
 async function checkAuthStatus() {
     try {
-        const response = await fetch(`${API_URL}/auth/status`, {
+        const response = await fetchWithTimeout(`${API_URL}/auth/status`, {
             credentials: 'include'
-        });
+        }, 8000);
         return await response.json();
     } catch (error) {
         console.error('Auth check failed:', error);
@@ -578,7 +609,7 @@ async function loadProfile() {
             
             // Format created date
             if (user.created_at) {
-                const date = new Date(user.created_at);
+                const date = parseApiDate(user.created_at);
                 document.getElementById('profileCreated').value = date.toLocaleDateString();
             }
             
@@ -747,12 +778,16 @@ async function loadUserSessions() {
         });
         const data = await response.json();
         
-        const sessionsList = document.getElementById('sessionsList');
+        const sessionsList = document.getElementById('sessionsList') || document.getElementById('sessionsContainer');
+        if (!sessionsList) {
+            console.error('Sessions container not found');
+            return;
+        }
         
         if (data.success && data.sessions && data.sessions.length > 0) {
             sessionsList.innerHTML = data.sessions.map(session => {
-                const createdDate = new Date(session.created_at).toLocaleString();
-                const lastActivity = new Date(session.last_activity).toLocaleString();
+                const createdDate = parseApiDate(session.created_at).toLocaleString();
+                const lastActivity = parseApiDate(session.last_activity).toLocaleString();
                 const isCurrent = session.is_current;
                 
                 return `
@@ -847,7 +882,7 @@ async function showLoginPage() {
     if (rememberToken) {
         const lastLogin = localStorage.getItem('last_login_time');
         if (lastLogin) {
-            const lastLoginDate = new Date(lastLogin);
+            const lastLoginDate = parseApiDate(lastLogin);
             const lastLoginInfo = document.getElementById('lastLoginInfo');
             const lastLoginText = document.getElementById('lastLoginText');
             if (lastLoginInfo && lastLoginText) {
@@ -1853,7 +1888,7 @@ function displayLatestReadings(readings) {
                         
                         <div class="mt-2">
                             <small class="text-muted">
-                                <i class="bi bi-clock"></i> ${new Date(reading.timestamp).toLocaleTimeString()}
+                                <i class="bi bi-clock"></i> ${parseApiDate(reading.timestamp).toLocaleTimeString()}
                             </small>
                         </div>
                     </div>
@@ -1881,7 +1916,7 @@ function displayRecentAlerts(alerts) {
                     <div>
                         <i class="bi bi-${icon}"></i> <strong>${alert.alert_type}</strong>
                         <p class="mb-0 small">${alert.message}</p>
-                        <small class="text-muted">${new Date(alert.timestamp).toLocaleString()}</small>
+                        <small class="text-muted">${parseApiDate(alert.timestamp).toLocaleString()}</small>
                     </div>
                 </div>
             </div>
@@ -1975,7 +2010,7 @@ async function loadAQIChart() {
         
         // Use actual Date objects instead of formatted strings
         const chartData = readings.reverse().map(r => ({
-            x: new Date(r.timestamp),
+            x: parseApiDate(r.timestamp),
             aqi: r.aqi,
             temp: r.temperature
         }));
@@ -2082,7 +2117,11 @@ async function loadAQIChart() {
 // ==================== DEVICES ====================
 
 async function loadDevices() {
-    const container = document.getElementById('devicesContainer');
+    const container = document.getElementById('devicesList') || document.getElementById('devicesContainer');
+    if (!container) {
+        console.error('Devices container not found');
+        return;
+    }
     
     try {
         const response = await fetch(`${API_URL}/devices`);
@@ -2127,7 +2166,7 @@ async function loadDevices() {
                                 </p>
                                 <p class="mb-2">
                                     <i class="bi bi-calendar text-info"></i>
-                                    <strong>Registered:</strong> ${new Date(device.registered_at).toLocaleDateString()}
+                                    <strong>Registered:</strong> ${parseApiDate(device.registered_at).toLocaleDateString()}
                                 </p>
                                 <p class="mb-0">
                                     <i class="bi bi-clock text-success"></i>
@@ -2158,9 +2197,32 @@ async function loadDevices() {
 }
 
 async function addDevice() {
-    const deviceId = document.getElementById('newDeviceId').value;
-    const deviceName = document.getElementById('newDeviceName').value;
-    const location = document.getElementById('newDeviceLocation').value;
+    const deviceNameEl = document.getElementById('deviceName');
+    const deviceIdEl = document.getElementById('deviceMac');
+    const locationEl = document.getElementById('deviceLocation');
+    const errorEl = document.getElementById('deviceError');
+
+    if (!deviceNameEl || !deviceIdEl || !locationEl) {
+        console.error('Add device form elements not found');
+        return;
+    }
+
+    const deviceName = deviceNameEl.value.trim();
+    const deviceId = deviceIdEl.value.trim();
+    const location = locationEl.value.trim();
+
+    if (errorEl) {
+        errorEl.classList.add('d-none');
+        errorEl.textContent = '';
+    }
+
+    if (!deviceName || !deviceId) {
+        if (errorEl) {
+            errorEl.textContent = 'Device name and device ID/MAC are required';
+            errorEl.classList.remove('d-none');
+        }
+        return;
+    }
     
     try {
         const response = await fetch(`${API_URL}/devices`, {
@@ -2171,12 +2233,33 @@ async function addDevice() {
         });
         
         if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
-            document.getElementById('addDeviceForm').reset();
+            const modalEl = document.getElementById('addDeviceModal');
+            const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+
+            deviceNameEl.value = '';
+            deviceIdEl.value = '';
+            locationEl.value = '';
+            const descriptionEl = document.getElementById('deviceDescription');
+            if (descriptionEl) {
+                descriptionEl.value = '';
+            }
             loadDevices();
+        } else {
+            const payload = await response.json().catch(() => ({}));
+            if (errorEl) {
+                errorEl.textContent = payload.error || 'Failed to add device';
+                errorEl.classList.remove('d-none');
+            }
         }
     } catch (error) {
         console.error('Add device failed:', error);
+        if (errorEl) {
+            errorEl.textContent = 'Failed to add device. Please try again.';
+            errorEl.classList.remove('d-none');
+        }
     }
 }
 
@@ -2209,7 +2292,7 @@ function loadHistoryChart(readings) {
     
     // Use actual Date objects for time-based axis
     const chartData = readings.reverse().map(r => ({
-        x: new Date(r.timestamp),
+        x: parseApiDate(r.timestamp),
         aqi: r.aqi,
         temp: r.temperature,
         hum: r.humidity
@@ -2317,7 +2400,7 @@ function loadHistoryTable(readings) {
         
         return `
             <tr>
-                <td>${new Date(r.timestamp).toLocaleString()}</td>
+                <td>${parseApiDate(r.timestamp).toLocaleString()}</td>
                 <td>${r.temperature.toFixed(1)}°C</td>
                 <td>${r.humidity.toFixed(1)}%</td>
                 <td>${r.mq135.toFixed(1)}</td>
@@ -2332,20 +2415,42 @@ function loadHistoryTable(readings) {
 // ==================== ALERTS ====================
 
 async function loadAlerts() {
-    const container = document.getElementById('alertsContainer');
+    const activeContainer = document.getElementById('activeAlertsList');
+    const acknowledgedContainer = document.getElementById('acknowledgedAlertsList');
+    const legacyContainer = document.getElementById('alertsContainer');
+
+    if (!legacyContainer && (!activeContainer || !acknowledgedContainer)) {
+        console.error('Alerts container not found');
+        return;
+    }
     
     try {
         const response = await fetch(`${API_URL}/alerts?hours=168&limit=100`);
         const alerts = await response.json();
         
         if (alerts.length === 0) {
-            container.innerHTML = `
-                <div class="text-center py-5">
-                    <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
-                    <h4 class="mt-3">No Alerts</h4>
-                    <p class="text-muted">System is running smoothly</p>
-                </div>
-            `;
+            if (legacyContainer) {
+                legacyContainer.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+                        <h4 class="mt-3">No Alerts</h4>
+                        <p class="text-muted">System is running smoothly</p>
+                    </div>
+                `;
+            } else {
+                activeContainer.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="bi bi-check-circle text-success" style="font-size: 2.2rem;"></i>
+                        <p class="mt-2 mb-0 text-muted">No active alerts</p>
+                    </div>
+                `;
+                acknowledgedContainer.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="bi bi-check2-circle text-muted" style="font-size: 2.2rem;"></i>
+                        <p class="mt-2 mb-0 text-muted">No acknowledged alerts</p>
+                    </div>
+                `;
+            }
             return;
         }
         
@@ -2353,21 +2458,56 @@ async function loadAlerts() {
         const unacknowledged = alerts.filter(a => !a.acknowledged);
         const acknowledged = alerts.filter(a => a.acknowledged);
         
-        let html = '';
-        
-        if (unacknowledged.length > 0) {
-            html += '<h4 class="mb-3"><i class="bi bi-bell text-danger"></i> Active Alerts</h4>';
-            html += unacknowledged.map(alert => createAlertCard(alert, false)).join('');
+        if (legacyContainer) {
+            let html = '';
+
+            if (unacknowledged.length > 0) {
+                html += '<h4 class="mb-3"><i class="bi bi-bell text-danger"></i> Active Alerts</h4>';
+                html += unacknowledged.map(alert => createAlertCard(alert, false)).join('');
+            }
+
+            if (acknowledged.length > 0) {
+                html += '<h4 class="mb-3 mt-4"><i class="bi bi-check2-circle text-success"></i> Acknowledged</h4>';
+                html += acknowledged.map(alert => createAlertCard(alert, true)).join('');
+            }
+
+            legacyContainer.innerHTML = html;
+        } else {
+            activeContainer.innerHTML = unacknowledged.length > 0
+                ? unacknowledged.map(alert => createAlertCard(alert, false)).join('')
+                : `
+                    <div class="text-center py-4">
+                        <i class="bi bi-check-circle text-success" style="font-size: 2.2rem;"></i>
+                        <p class="mt-2 mb-0 text-muted">No active alerts</p>
+                    </div>
+                `;
+
+            acknowledgedContainer.innerHTML = acknowledged.length > 0
+                ? acknowledged.map(alert => createAlertCard(alert, true)).join('')
+                : `
+                    <div class="text-center py-4">
+                        <i class="bi bi-check2-circle text-muted" style="font-size: 2.2rem;"></i>
+                        <p class="mt-2 mb-0 text-muted">No acknowledged alerts</p>
+                    </div>
+                `;
         }
-        
-        if (acknowledged.length > 0) {
-            html += '<h4 class="mb-3 mt-4"><i class="bi bi-check2-circle text-success"></i> Acknowledged</h4>';
-            html += acknowledged.map(alert => createAlertCard(alert, true)).join('');
-        }
-        
-        container.innerHTML = html;
     } catch (error) {
         console.error('Alerts load failed:', error);
+        if (legacyContainer) {
+            legacyContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Failed to load alerts
+                </div>
+            `;
+        } else {
+            const errorHtml = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Failed to load alerts
+                </div>
+            `;
+            if (activeContainer) activeContainer.innerHTML = errorHtml;
+            if (acknowledgedContainer) acknowledgedContainer.innerHTML = errorHtml;
+        }
     }
 }
 
@@ -2387,7 +2527,7 @@ function createAlertCard(alert, acknowledged) {
                         <p class="mb-2">${alert.message}</p>
                         ${alert.aqi_value ? `<p class="mb-0"><strong>AQI:</strong> ${alert.aqi_value.toFixed(1)}</p>` : ''}
                         <p class="text-muted small mb-0">
-                            <i class="bi bi-clock"></i> ${new Date(alert.timestamp).toLocaleString()}
+                            <i class="bi bi-clock"></i> ${parseApiDate(alert.timestamp).toLocaleString()}
                         </p>
                     </div>
                     <div>
@@ -2776,7 +2916,7 @@ function getDarkerColor(hexColor) {
 
 function getTimeSince(timestamp) {
     const now = new Date();
-    const past = new Date(timestamp);
+    const past = parseApiDate(timestamp);
     const diffMs = now - past;
     const diffMins = Math.floor(diffMs / 60000);
     
@@ -2857,7 +2997,7 @@ async function loadAdminStats() {
             
             // Update activity
             const lastReading = stats.activity.last_reading 
-                ? new Date(stats.activity.last_reading).toLocaleString()
+                ? parseApiDate(stats.activity.last_reading).toLocaleString()
                 : 'No readings yet';
             document.getElementById('statLastReading').textContent = lastReading;
             
@@ -2865,7 +3005,7 @@ async function loadAdminStats() {
             document.getElementById('statBackupCount').textContent = stats.backups.total;
             
             const latestBackup = stats.backups.latest
-                ? new Date(stats.backups.latest.created_at).toLocaleString()
+                ? parseApiDate(stats.backups.latest.created_at).toLocaleString()
                 : 'No backups yet';
             document.getElementById('statLatestBackup').textContent = latestBackup;
         }
@@ -2916,7 +3056,7 @@ async function listBackups() {
             } else {
                 listDiv.innerHTML = data.backups.map(backup => {
                     const sizeMB = (backup.size / 1024 / 1024).toFixed(2);
-                    const date = new Date(backup.created_at).toLocaleString();
+                    const date = parseApiDate(backup.created_at).toLocaleString();
                     return `
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
