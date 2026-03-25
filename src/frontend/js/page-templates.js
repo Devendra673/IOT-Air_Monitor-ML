@@ -575,23 +575,12 @@ export function getAdminHTML() {
             <h4 class="mb-3">Mobile Notification Setup</h4>
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5><i class="bi bi-bell"></i> Twilio Configuration (API Key)</h5>
+                    <h5><i class="bi bi-bell"></i> Twilio Configuration (Auth Token)</h5>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Configure Twilio using <strong>API Key authentication</strong> for secure SMS/WhatsApp alerts.
+                        <i class="bi bi-info-circle"></i> Configure Twilio using <strong>Auth Token authentication</strong> for SMS/WhatsApp alerts.
                         <a href="https://www.twilio.com/console" target="_blank">Get credentials from Twilio Console</a>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <strong><i class="bi bi-key-fill"></i> Create Twilio API Key:</strong>
-                        <ol class="mb-0">
-                            <li>Go to <a href="https://www.twilio.com/console/project/api-keys" target="_blank" class="alert-link">Twilio API Keys <i class="bi bi-box-arrow-up-right"></i></a></li>
-                            <li>Click "Create new API Key"</li>
-                            <li>Give it a name (e.g., "IoT Air Quality System")</li>
-                            <li>Select "Standard" key type</li>
-                            <li><strong>Important:</strong> Copy the SID and Secret immediately (you can't view the secret again!)</li>
-                        </ol>
                     </div>
                     
                     <form id="twilioConfigForm">
@@ -601,19 +590,12 @@ export function getAdminHTML() {
                             <input type="text" class="form-control" id="twilioAccountSid" placeholder="ACxxxxxx..." required>
                             <small class="text-muted">Found in Twilio Console dashboard (starts with "AC", 34 characters)</small>
                         </div>
-                        
-                        <!-- API Key Fields -->
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">API Key SID <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="twilioApiKeySid" placeholder="SKxxxxxx..." required>
-                                <small class="text-muted">Starts with "SK", 34 characters</small>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">API Key Secret <span class="text-danger">*</span></label>
-                                <input type="password" class="form-control" id="twilioApiKeySecret" placeholder="Enter API key secret" required>
-                                <small class="text-muted">32 characters (save it securely!)</small>
-                            </div>
+
+                        <!-- Auth Token Field -->
+                        <div class="mb-3" id="authTokenField">
+                            <label class="form-label">Auth Token <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="twilioAuthToken" placeholder="Enter Twilio Auth Token">
+                            <small class="text-muted">Found in Twilio Console under Account Info</small>
                         </div>
                         
                         <hr>
@@ -637,6 +619,15 @@ export function getAdminHTML() {
                                 <label class="form-label">Admin Mobile Number <span class="text-danger">*</span></label>
                                 <input type="tel" class="form-control" id="adminMobileNumber" placeholder="+1234567890" required>
                                 <small class="text-muted">Your mobile number for test messages (must be verified in Twilio for trial accounts)</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Alert Mode <span class="text-danger">*</span></label>
+                                <select class="form-select" id="twilioNotificationMode">
+                                    <option value="sms">SMS Only</option>
+                                    <option value="whatsapp">WhatsApp Only</option>
+                                    <option value="both">SMS + WhatsApp</option>
+                                </select>
+                                <small class="text-muted">Choose how admin alerts are delivered.</small>
                             </div>
                         </div>
                         

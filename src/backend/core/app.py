@@ -175,8 +175,7 @@ def initialize_database():
             ('admin_mobile_number', '', 'string', 'Admin mobile number for notifications (E.164 format)'),
             ('notification_type', 'sms', 'string', 'Notification type (sms, whatsapp, both)'),
             ('twilio_account_sid', '', 'string', 'Twilio Account SID'),
-            ('twilio_api_key_sid', '', 'string', 'Twilio API Key SID'),
-            ('twilio_api_key_secret', '', 'string', 'Twilio API Key Secret'),
+            ('twilio_auth_token', '', 'string', 'Twilio Auth Token'),
             ('twilio_phone_number', '', 'string', 'Twilio phone number (E.164 format)'),
             ('twilio_whatsapp_number', '', 'string', 'Twilio WhatsApp number'),
         ]
@@ -617,8 +616,24 @@ def update_alert_preferences():
             'error': 'Please verify your mobile number first'
         }), 400
     
-    # Update preferences (these fields might need to be added to User model)
-    user.notification_preference = data.get('notification_type', 'sms')
+    # Frontend sends sms_enabled/whatsapp_enabled booleans; map to backend notification preference.
+    sms_enabled = bool(data.get('sms_enabled', True))
+    whatsapp_enabled = bool(data.get('whatsapp_enabled', False))
+
+    if sms_enabled and whatsapp_enabled:
+        user.notification_preference = 'both'
+        user.alert_enabled = True
+    elif whatsapp_enabled:
+        user.notification_preference = 'whatsapp'
+        user.alert_enabled = True
+    elif sms_enabled:
+        user.notification_preference = 'sms'
+        user.alert_enabled = True
+    else:
+        # Allow users to mute alerts completely.
+        user.notification_preference = 'sms'
+        user.alert_enabled = False
+
     db.session.commit()
     
     return jsonify({
@@ -931,22 +946,52 @@ def predict():
             )
             db.session.add(alert)
             
-            # Send mobile notification if enabled
+            # Send mobile notifications if enabled
             settings_map = {s.key: s.get_typed_value() for s in Settings.query.all()}
             if settings_map.get('enable_mobile_alerts', False):
                 admin_mobile = settings_map.get('admin_mobile_number', '')
-                notification_type = settings_map.get('notification_type', 'sms')
-                
-                if admin_mobile and mobile_notification.enabled:
-                    mobile_notification.send_aqi_alert(
-                        to_number=admin_mobile,
-                        aqi=aqi_prediction,
-                        level=alert_info['level'],
-                        message=alert_info['message'],
-                        device_name=device.device_name,
-                        location=device.location,
-                        notification_type=notification_type
-                    )
+                admin_notification_type = settings_map.get('notification_type', 'sms')
+
+                if mobile_notification.enabled:
+                    sent_numbers = set()
+
+                    # Keep admin notifications for operational visibility.
+                    if admin_mobile:
+                        mobile_notification.send_aqi_alert(
+                            to_number=admin_mobile,
+                            aqi=aqi_prediction,
+                            level=alert_info['level'],
+                            message=alert_info['message'],
+                            device_name=device.device_name,
+                            location=device.location,
+                            notification_type=admin_notification_type
+                        )
+                        sent_numbers.add(admin_mobile)
+
+                    # Send to all active users who verified mobile and enabled alerts.
+                    recipients = User.query.filter(
+                        User.is_active == True,
+                        User.mobile_verified == True,
+                        User.alert_enabled == True,
+                        User.mobile_number.isnot(None)
+                    ).all()
+
+                    for recipient in recipients:
+                        to_number = (recipient.mobile_number or '').strip()
+                        if not to_number or not to_number.startswith('+') or to_number in sent_numbers:
+                            continue
+
+                        user_channel = (recipient.notification_preference or 'sms').lower()
+                        mobile_notification.send_aqi_alert(
+                            to_number=to_number,
+                            aqi=aqi_prediction,
+                            level=alert_info['level'],
+                            message=alert_info['message'],
+                            device_name=device.device_name,
+                            location=device.location,
+                            notification_type=user_channel
+                        )
+                        sent_numbers.add(to_number)
         
         db.session.commit()
         
@@ -1182,18 +1227,16 @@ def reinitialize_mobile_service():
     global mobile_notification, auth_service
     
     try:
-        # Get Twilio API Key settings from database
+        # Get Twilio Auth Token settings from database
         account_sid = Settings.query.filter_by(key='twilio_account_sid').first()
-        api_key_sid = Settings.query.filter_by(key='twilio_api_key_sid').first()
-        api_key_secret = Settings.query.filter_by(key='twilio_api_key_secret').first()
+        auth_token = Settings.query.filter_by(key='twilio_auth_token').first()
         phone_number = Settings.query.filter_by(key='twilio_phone_number').first()
         whatsapp_number = Settings.query.filter_by(key='twilio_whatsapp_number').first()
         
-        # Reinitialize service with API Key authentication
+        # Reinitialize service with Auth Token authentication
         mobile_notification = MobileNotificationService(
             account_sid=account_sid.value if account_sid else '',
-            api_key_sid=api_key_sid.value if api_key_sid else '',
-            api_key_secret=api_key_secret.value if api_key_secret else '',
+            auth_token=auth_token.value if auth_token else '',
             from_number=phone_number.value if phone_number else '',
             whatsapp_from=whatsapp_number.value if whatsapp_number else ''
         )
@@ -1227,7 +1270,7 @@ def update_setting(key):
     db.session.commit()
     
     # Reinitialize mobile service if Twilio settings changed
-    twilio_keys = ['twilio_account_sid', 'twilio_api_key_sid', 'twilio_api_key_secret', 'twilio_phone_number', 'twilio_whatsapp_number']
+    twilio_keys = ['twilio_account_sid', 'twilio_auth_token', 'twilio_phone_number', 'twilio_whatsapp_number']
     if key in twilio_keys:
         reinitialize_mobile_service()
     

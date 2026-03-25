@@ -190,6 +190,7 @@ class User(db.Model):
         return max(0, delta.days)
     
     def to_dict(self):
+        preference = (self.notification_preference or 'sms').lower()
         return {
             'id': self.id,
             'username': self.username,
@@ -203,6 +204,9 @@ class User(db.Model):
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'is_active': self.is_active,
             'notification_preference': self.notification_preference,
+            'sms_enabled': preference in ['sms', 'both'],
+            'whatsapp_enabled': preference in ['whatsapp', 'both'],
+            'alert_enabled': self.alert_enabled,
             'two_factor_enabled': self.two_factor_enabled,
             'profile_completed': self.profile_completed,
             'terms_accepted': self.terms_accepted,

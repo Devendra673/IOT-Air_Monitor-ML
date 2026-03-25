@@ -2425,6 +2425,9 @@ async function acknowledgeAlert(alertId) {
 async function loadSettings() {
     try {
         const response = await fetch(`${API_URL}/settings`);
+        if (!response.ok) {
+            throw new Error(`Failed to load settings (${response.status})`);
+        }
         const settings = await response.json();
         
         // Populate thresholds
@@ -2433,29 +2436,43 @@ async function loadSettings() {
         const frequencySelect = document.getElementById('alertFrequency');
         const retentionSelect = document.getElementById('dataRetention');
         
-        if (warningInput && settings.warning_threshold) {
-            warningInput.value = settings.warning_threshold.value || 100;
+        if (warningInput && settings.alert_threshold_unhealthy) {
+            warningInput.value = settings.alert_threshold_unhealthy.value || 151;
         }
-        if (dangerInput && settings.danger_threshold) {
-            dangerInput.value = settings.danger_threshold.value || 150;
+        if (dangerInput && settings.alert_threshold_dangerous) {
+            dangerInput.value = settings.alert_threshold_dangerous.value || 201;
         }
-        if (frequencySelect && settings.alert_frequency) {
-            frequencySelect.value = settings.alert_frequency.value || 'hourly';
+        if (frequencySelect && settings.alert_cooldown_minutes) {
+            const cooldown = Number(settings.alert_cooldown_minutes.value || 60);
+            if (cooldown <= 0) {
+                frequencySelect.value = 'immediate';
+            } else if (cooldown < 1440) {
+                frequencySelect.value = 'hourly';
+            } else {
+                frequencySelect.value = 'daily';
+            }
         }
-        if (retentionSelect && settings.data_retention) {
-            retentionSelect.value = settings.data_retention.value || '30';
+        if (retentionSelect && settings.data_retention_days) {
+            retentionSelect.value = String(settings.data_retention_days.value || 30);
         }
         
         // Check if mobile alerts are enabled by admin
-        const mobileAlertsEnabled = settings.enable_mobile_alerts && settings.enable_mobile_alerts.value === 'true';
-        const twilioConfigured = settings.twilio_account_sid && settings.twilio_account_sid.value && 
-                                 settings.twilio_phone_number && settings.twilio_phone_number.value;
+        const mobileAlertsValue = settings.enable_mobile_alerts ? settings.enable_mobile_alerts.value : false;
+        const mobileAlertsEnabled = mobileAlertsValue === true || String(mobileAlertsValue).toLowerCase() === 'true';
+        const twilioConfigured = settings.twilio_account_sid && settings.twilio_account_sid.value &&
+                     settings.twilio_auth_token && settings.twilio_auth_token.value &&
+                     settings.twilio_phone_number && settings.twilio_phone_number.value;
         
         const mobileAlertCard = document.querySelector('.card:has(#mobileNotConfigured)');
-        
+        const notConfiguredDiv = document.getElementById('mobileNotConfigured');
+
+        // Preserve the original setup markup so we can restore it after admin enables Twilio.
+        if (notConfiguredDiv && !notConfiguredDiv.dataset.defaultHtml) {
+            notConfiguredDiv.dataset.defaultHtml = notConfiguredDiv.innerHTML;
+        }
+
         if (!mobileAlertsEnabled || !twilioConfigured) {
             // Mobile alerts not configured by admin
-            const notConfiguredDiv = document.getElementById('mobileNotConfigured');
             if (notConfiguredDiv) {
                 notConfiguredDiv.innerHTML = `
                     <div class="alert alert-warning">
@@ -2468,6 +2485,11 @@ async function loadSettings() {
             }
             document.getElementById('mobileConfigured')?.classList.add('d-none');
             return;
+        }
+
+        // Twilio is configured, restore original setup markup if it was replaced by warning state.
+        if (notConfiguredDiv && notConfiguredDiv.dataset.defaultHtml) {
+            notConfiguredDiv.innerHTML = notConfiguredDiv.dataset.defaultHtml;
         }
         
         // Check if user has mobile configured and verified
@@ -2508,6 +2530,11 @@ async function saveSettings(e) {
     const warningThreshold = document.getElementById('warningThreshold').value;
     const dangerThreshold = document.getElementById('dangerThreshold').value;
     const alertFrequency = document.getElementById('alertFrequency').value;
+    const dataRetention = document.getElementById('dataRetention')?.value;
+
+    let cooldownMinutes = 60;
+    if (alertFrequency === 'immediate') cooldownMinutes = 0;
+    if (alertFrequency === 'daily') cooldownMinutes = 1440;
     
     // Validate thresholds
     if (parseInt(dangerThreshold) <= parseInt(warningThreshold)) {
@@ -2516,29 +2543,50 @@ async function saveSettings(e) {
     }
     
     try {
-        // Save warning threshold
-        await fetch(`${API_URL}/settings/warning_threshold`, {
+        // Save unhealthy threshold
+        const warningResponse = await fetch(`${API_URL}/settings/alert_threshold_unhealthy`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ value: warningThreshold })
         });
+        if (!warningResponse.ok) {
+            throw new Error(`Failed to save unhealthy threshold (${warningResponse.status})`);
+        }
         
-        // Save danger threshold
-        await fetch(`${API_URL}/settings/danger_threshold`, {
+        // Save dangerous threshold
+        const dangerResponse = await fetch(`${API_URL}/settings/alert_threshold_dangerous`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ value: dangerThreshold })
         });
+        if (!dangerResponse.ok) {
+            throw new Error(`Failed to save dangerous threshold (${dangerResponse.status})`);
+        }
         
-        // Save alert frequency
-        await fetch(`${API_URL}/settings/alert_frequency`, {
+        // Save cooldown used by alert engine
+        const cooldownResponse = await fetch(`${API_URL}/settings/alert_cooldown_minutes`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ value: alertFrequency })
+            body: JSON.stringify({ value: String(cooldownMinutes) })
         });
+        if (!cooldownResponse.ok) {
+            throw new Error(`Failed to save cooldown (${cooldownResponse.status})`);
+        }
+
+        if (dataRetention) {
+            const retentionResponse = await fetch(`${API_URL}/settings/data_retention_days`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ value: dataRetention })
+            });
+            if (!retentionResponse.ok) {
+                throw new Error(`Failed to save data retention (${retentionResponse.status})`);
+            }
+        }
         
         showAlert('Settings saved successfully!', 'success');
     } catch (error) {
@@ -2644,7 +2692,7 @@ async function saveDataRetention() {
     const retention = document.getElementById('dataRetention').value;
     
     try {
-        const response = await fetch(`${API_URL}/settings/data_retention`, {
+        const response = await fetch(`${API_URL}/settings/data_retention_days`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -2957,23 +3005,20 @@ async function loadTwilioConfig() {
         if (response.ok) {
             const settings = await response.json();
             
-            // Populate Twilio API Key fields
+            // Populate Twilio auth token and messaging fields
             const accountSidInput = document.getElementById('twilioAccountSid');
-            const apiKeySidInput = document.getElementById('twilioApiKeySid');
-            const apiKeySecretInput = document.getElementById('twilioApiKeySecret');
+            const authTokenInput = document.getElementById('twilioAuthToken');
             const phoneNumberInput = document.getElementById('twilioPhoneNumber');
             const whatsappNumberInput = document.getElementById('twilioWhatsappNumber');
             const adminMobileInput = document.getElementById('adminMobileNumber');
+            const notificationModeInput = document.getElementById('twilioNotificationMode');
             const enableAlertsCheckbox = document.getElementById('enableMobileAlerts');
             
             if (accountSidInput && settings.twilio_account_sid) {
                 accountSidInput.value = settings.twilio_account_sid.value || '';
             }
-            if (apiKeySidInput && settings.twilio_api_key_sid) {
-                apiKeySidInput.value = settings.twilio_api_key_sid.value || '';
-            }
-            if (apiKeySecretInput && settings.twilio_api_key_secret) {
-                apiKeySecretInput.value = settings.twilio_api_key_secret.value || '';
+            if (authTokenInput && settings.twilio_auth_token) {
+                authTokenInput.value = settings.twilio_auth_token.value || '';
             }
             if (phoneNumberInput && settings.twilio_phone_number) {
                 phoneNumberInput.value = settings.twilio_phone_number.value || '';
@@ -2984,8 +3029,12 @@ async function loadTwilioConfig() {
             if (adminMobileInput && settings.admin_mobile_number) {
                 adminMobileInput.value = settings.admin_mobile_number.value || '';
             }
+            if (notificationModeInput && settings.notification_type) {
+                notificationModeInput.value = (settings.notification_type.value || 'sms').toLowerCase();
+            }
             if (enableAlertsCheckbox && settings.enable_mobile_alerts) {
-                enableAlertsCheckbox.checked = settings.enable_mobile_alerts.value === 'true';
+                const enableAlertsValue = settings.enable_mobile_alerts.value;
+                enableAlertsCheckbox.checked = enableAlertsValue === true || String(enableAlertsValue).toLowerCase() === 'true';
             }
         }
     } catch (error) {
@@ -2997,16 +3046,21 @@ async function saveTwilioConfig(e) {
     e.preventDefault();
     
     const accountSid = document.getElementById('twilioAccountSid').value.trim();
-    const apiKeySid = document.getElementById('twilioApiKeySid').value.trim();
-    const apiKeySecret = document.getElementById('twilioApiKeySecret').value.trim();
+    const authToken = document.getElementById('twilioAuthToken')?.value.trim() || '';
     const phoneNumber = document.getElementById('twilioPhoneNumber').value.trim();
     const whatsappNumber = document.getElementById('twilioWhatsappNumber').value.trim();
     const adminMobile = document.getElementById('adminMobileNumber').value.trim();
+    const notificationMode = (document.getElementById('twilioNotificationMode')?.value || 'sms').toLowerCase();
     const enableAlerts = document.getElementById('enableMobileAlerts').checked;
     
     // Validate required fields
-    if (!accountSid || !apiKeySid || !apiKeySecret || !phoneNumber) {
-        showAlert('Account SID, API Key SID, API Key Secret, and Phone Number are required', 'danger');
+    if (!accountSid || !phoneNumber) {
+        showAlert('Account SID and Phone Number are required', 'danger');
+        return;
+    }
+
+    if (!authToken) {
+        showAlert('Auth Token is required', 'danger');
         return;
     }
     
@@ -3015,9 +3069,14 @@ async function saveTwilioConfig(e) {
         showAlert('Invalid admin mobile number format. Use E.164 format: +1234567890', 'danger');
         return;
     }
+
+    if ((notificationMode === 'whatsapp' || notificationMode === 'both') && !whatsappNumber) {
+        showAlert('Twilio WhatsApp number is required for WhatsApp or SMS + WhatsApp mode', 'danger');
+        return;
+    }
     
     try {
-        // Save API Key settings
+        // Save Twilio Auth Token settings
         const savePromises = [
             fetch(`${API_URL}/settings/twilio_account_sid`, {
                 method: 'PUT',
@@ -3025,17 +3084,11 @@ async function saveTwilioConfig(e) {
                 credentials: 'include',
                 body: JSON.stringify({ value: accountSid })
             }),
-            fetch(`${API_URL}/settings/twilio_api_key_sid`, {
+            fetch(`${API_URL}/settings/twilio_auth_token`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ value: apiKeySid })
-            }),
-            fetch(`${API_URL}/settings/twilio_api_key_secret`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ value: apiKeySecret })
+                body: JSON.stringify({ value: authToken })
             }),
             fetch(`${API_URL}/settings/twilio_phone_number`, {
                 method: 'PUT',
@@ -3054,6 +3107,12 @@ async function saveTwilioConfig(e) {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ value: adminMobile })
+            }),
+            fetch(`${API_URL}/settings/notification_type`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ value: notificationMode })
             }),
             fetch(`${API_URL}/settings/enable_mobile_alerts`, {
                 method: 'PUT',
@@ -3088,7 +3147,7 @@ async function saveTwilioConfig(e) {
             return;
         }
         
-        showAlert('Twilio configuration saved successfully using API Key! Settings are active immediately.', 'success');
+        showAlert('Twilio configuration saved successfully using Auth Token! Settings are active immediately.', 'success');
     } catch (error) {
         console.error('Failed to save Twilio config:', error);
         showAlert('Failed to save configuration. Make sure you are logged in as admin and try again.', 'danger');
@@ -3151,7 +3210,7 @@ async function testTwilioConnection() {
                     <hr>
                     <small><strong>Common Solutions:</strong></small>
                     <ul class="mb-0 small">
-                        <li>Verify Account SID and API Key credentials are correct (no extra spaces)</li>
+                        <li>Verify Account SID and Auth Token are correct (no extra spaces)</li>
                         <li>Check phone number format: +1234567890 (E.164 format)</li>
                         <li><strong>Trial Accounts:</strong> Admin mobile must be verified in 
                             <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/verified" target="_blank" class="alert-link">

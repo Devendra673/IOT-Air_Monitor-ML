@@ -78,4 +78,6 @@ Thumbs.db
 marimo/_static/
 marimo/_lsp/
 __marimo__/
->>>>>>> 82cbe10d1634776ee38aa75e4b3294fdd9ac9695
+
+# Local secret setup files
+twilio_setup_info.txt

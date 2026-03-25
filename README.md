@@ -264,8 +264,7 @@ Mobile alerts are **optional** and configured from the **Admin** panel.
 2. Open **Admin** page
 3. In **Mobile Notification Setup**, enter:
    - Twilio Account SID (`AC...`)
-   - Twilio API Key SID (`SK...`)
-   - Twilio API Key Secret
+   - Twilio Auth Token
    - Twilio phone number (`+1234567890` format)
    - Optional WhatsApp sender number
    - Admin mobile number (target for test alert)
@@ -286,8 +285,7 @@ Important:
 **Twilio Authentication Method**:
 ```python
 TWILIO_ACCOUNT_SID = 'your_account_sid'
-TWILIO_API_KEY_SID = 'your_api_key_sid'
-TWILIO_API_KEY_SECRET = 'your_api_key_secret'
+TWILIO_AUTH_TOKEN = 'your_auth_token'
 TWILIO_PHONE_NUMBER = '+your_twilio_number'
 ```
 
@@ -395,8 +393,7 @@ Create `.env` file for sensitive data:
 SECRET_KEY=your-super-secret-key-here
 DATABASE_URL=sqlite:///data/database/iot_data.db
 TWILIO_ACCOUNT_SID=your_sid
-TWILIO_API_KEY_SID=your_api_key_sid
-TWILIO_API_KEY_SECRET=your_api_key_secret
+TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_PHONE_NUMBER=+1234567890
 ```
 
@@ -547,7 +544,7 @@ This enables:
 
 **Built with ❤️ using Python, Flask, scikit-learn, and Arduino**
 
-**Version**: 2.1 (API Key Authentication Update)  
+**Version**: 2.2 (Auth Token Authentication Update)  
 **Last Updated**: March 17, 2026
 
 For questions or issues, check the troubleshooting section or review the code comments.

@@ -16,46 +16,38 @@ class MobileNotificationService:
     Uses Twilio API for message delivery
     """
     
-    def __init__(self, account_sid='', api_key_sid='', api_key_secret='', from_number='', whatsapp_from=''):
+    def __init__(self, account_sid='', auth_token='', from_number='', whatsapp_from=''):
         """
-        Initialize mobile notification service using Twilio API Key authentication
+        Initialize mobile notification service using Twilio Auth Token authentication
         
         Args:
             account_sid: Twilio Account SID (required, starts with 'AC')
-            api_key_sid: Twilio API Key SID (required, starts with 'SK') 
-            api_key_secret: Twilio API Key Secret (required, 32 characters)
+            auth_token: Twilio Auth Token (required, 32 characters)
             from_number: Twilio phone number for SMS (e.g., '+1234567890')
             whatsapp_from: Twilio WhatsApp number (e.g., 'whatsapp:+14155238886')
         """
         # Strip whitespace from all credentials
         self.account_sid = account_sid.strip() if account_sid else ''
-        self.api_key_sid = api_key_sid.strip() if api_key_sid else ''
-        self.api_key_secret = api_key_secret.strip() if api_key_secret else ''
+        self.auth_token = auth_token.strip() if auth_token else ''
         self.from_number = from_number.strip() if from_number else ''
         self.whatsapp_from = whatsapp_from.strip() if whatsapp_from else ''
-        
-        # API Key authentication is required
-        self.enabled = bool(self.account_sid and self.api_key_sid and self.api_key_secret and self.from_number)
+
+        self.enabled = bool(self.account_sid and self.auth_token and self.from_number)
         
         print("="*60)
         print("MOBILE NOTIFICATION SERVICE INITIALIZATION")
         print("="*60)
-        print("Authentication Method: API Key (Recommended)")
+        print("Authentication Method: Auth Token")
         
         if self.account_sid:
             print(f"Account SID: Present ({self.account_sid[:10]}...), length: {len(self.account_sid)}")
         else:
             print("Account SID: MISSING")
         
-        if self.api_key_sid:
-            print(f"API Key SID: Present ({self.api_key_sid[:8]}...), length: {len(self.api_key_sid)}")
+        if self.auth_token:
+            print(f"Auth Token: Present ({'*' * 20}), length: {len(self.auth_token)}")
         else:
-            print("API Key SID: MISSING")
-        
-        if self.api_key_secret:
-            print(f"API Key Secret: Present ({'*' * 20}), length: {len(self.api_key_secret)}")
-        else:
-            print("API Key Secret: MISSING")
+            print("Auth Token: MISSING")
             
         print(f"Phone Number: {self.from_number if self.from_number else 'MISSING'}")
         print(f"WhatsApp: {self.whatsapp_from if self.whatsapp_from else 'Not configured'}")
@@ -68,15 +60,9 @@ class MobileNotificationService:
             if len(self.account_sid) != 34:
                 print(f"⚠️  WARNING: Account SID should be 34 characters (got {len(self.account_sid)})")
         
-        if self.api_key_sid:
-            if not self.api_key_sid.startswith('SK'):
-                print("⚠️  WARNING: API Key SID should start with 'SK'")
-            if len(self.api_key_sid) != 34:
-                print(f"⚠️  WARNING: API Key SID should be 34 characters (got {len(self.api_key_sid)})")
-        
-        if self.api_key_secret:
-            if len(self.api_key_secret) != 32:
-                print(f"⚠️  WARNING: API Key Secret should be 32 characters (got {len(self.api_key_secret)})")
+        if self.auth_token:
+            if len(self.auth_token) != 32:
+                print(f"⚠️  WARNING: Auth Token is usually 32 characters (got {len(self.auth_token)})")
         
         if self.from_number:
             if not self.from_number.startswith('+'):
@@ -84,9 +70,8 @@ class MobileNotificationService:
         
         if self.enabled:
             try:
-                # Create client with API Key authentication (api_key_sid, api_key_secret, account_sid)
-                self.client = Client(self.api_key_sid, self.api_key_secret, self.account_sid)
-                print(f"✓ Twilio client created successfully (API Key authentication)")
+                self.client = Client(self.account_sid, self.auth_token)
+                print("✓ Twilio client created successfully (Auth Token authentication)")
                 print("="*60)
             except Exception as e:
                 print(f"✗ Failed to create Twilio client: {e}")
@@ -201,10 +186,22 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 IoT Air Quality Monitor
 """.strip()
         
-        if notification_type == 'whatsapp':
-            return self.send_whatsapp(to_number, alert_text)
-        else:
-            return self.send_sms(to_number, alert_text)
+        channel = (notification_type or 'sms').lower()
+
+        if channel == 'both':
+            sms_ok = self.send_sms(to_number, alert_text)
+            whatsapp_ok = self.send_whatsapp(to_number, alert_text)
+            # Consider alert sent if either channel succeeds.
+            return sms_ok or whatsapp_ok
+
+        if channel == 'whatsapp':
+            # Fallback to SMS when WhatsApp sender is not configured.
+            whatsapp_ok = self.send_whatsapp(to_number, alert_text)
+            if not whatsapp_ok:
+                return self.send_sms(to_number, alert_text)
+            return True
+
+        return self.send_sms(to_number, alert_text)
     
     def send_otp(self, to_number, otp_code, notification_type='sms'):
         """
@@ -376,7 +373,7 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             
             # Provide helpful error messages
             if e.code == 20003:
-                error_msg = "Authentication failed. Your Account SID or API Key credentials are incorrect. Please re-enter them carefully in Admin Panel."
+                error_msg = "Authentication failed. Your Account SID or Auth Token is incorrect. Please re-enter them carefully in Admin Panel."
                 
             elif e.code == 21211:
                 error_msg = f"Invalid 'To' phone number: {test_phone_number}. Format should be: +[country code][number] (e.g., +12025551234)"

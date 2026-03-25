@@ -35,7 +35,7 @@ if __name__ == '__main__':
     print("✓ Database initialized")
     print("✓ Starting Flask server...")
     print(f"✓ Dashboard: http://localhost:5000")
-    print(f"✓ Default login: admin / admin123")
+    print(f"✓ Admin login: admin / Admin@123")
     print("\nPress Ctrl+C to stop the server\n")
     
     # Run the app
